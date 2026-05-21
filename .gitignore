@@ -1,0 +1,17 @@
+# Dependencies
+frontend/node_modules/
+frontend/dist/
+
+# Environment / secrets
+.env
+*.env
+
+# PHP logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# VS Code (optional — remove if you want to share settings with collaborators)
+.vscode/
