@@ -15,3 +15,6 @@ Thumbs.db
 
 # VS Code (optional — remove if you want to share settings with collaborators)
 .vscode/
+
+vendor/
+composer.lock
