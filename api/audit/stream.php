@@ -84,6 +84,7 @@ require_once __DIR__ . '/../../engines/RedirectTrail.php';
 require_once __DIR__ . '/../../engines/DNSPropagation.php';
 require_once __DIR__ . '/../../engines/TLSTimeline.php';
 require_once __DIR__ . '/../../engines/CookieAudit.php';
+require_once __DIR__ . '/../../engines/PacketJourney.php';
 // ── Define the engines ───────────────────────────────────────
 // Maps engine name → instantiated engine object
 // As real engines are built, swap the placeholder closure
@@ -97,17 +98,7 @@ $engines = [
 
     'cookie_audit' => new CookieAudit($audit),
 
-    'packet_journey' => new class($audit) extends Engine {
-        protected function analyze(): array {
-            sleep(4);
-            return [
-                'hops'       => 12,
-                'avg_rtt_ms' => 18.4,
-                'countries'  => ['IN', 'SG', 'US'],
-                'score'      => 82
-            ];
-        }
-    },
+    'packet_journey' => new PacketJourney($audit),
 
     'dns_resolution_tree' => new class($audit) extends Engine {
         protected function analyze(): array {
