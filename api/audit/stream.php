@@ -82,6 +82,7 @@ require_once __DIR__ . '/../../engines/Engine.php';
 // At the top, add the require:
 require_once __DIR__ . '/../../engines/RedirectTrail.php';
 require_once __DIR__ . '/../../engines/DNSPropagation.php';
+require_once __DIR__ . '/../../engines/TLSTimeline.php';
 // ── Define the engines ───────────────────────────────────────
 // Maps engine name → instantiated engine object
 // As real engines are built, swap the placeholder closure
@@ -91,19 +92,7 @@ $engines = [
     'redirect_trail' => new RedirectTrail($audit),
     'dns_propagation' => new DNSPropagation($audit),
 
-    'tls_timeline' => new class($audit) extends Engine {
-        protected function analyze(): array {
-            sleep(2);
-            return [
-                'issuer'         => 'DigiCert',
-                'valid_from'     => '2024-01-01',
-                'valid_to'       => '2025-01-01',
-                'days_remaining' => 180,
-                'anomalies'      => [],
-                'score'          => 88
-            ];
-        }
-    },
+    'tls_timeline' => new TLSTimeline($audit),
 
     'cookie_audit' => new class($audit) extends Engine {
         protected function analyze(): array {
