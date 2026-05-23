@@ -81,6 +81,7 @@ $pdo->prepare("
 require_once __DIR__ . '/../../engines/Engine.php';
 // At the top, add the require:
 require_once __DIR__ . '/../../engines/RedirectTrail.php';
+require_once __DIR__ . '/../../engines/DNSPropagation.php';
 // ── Define the engines ───────────────────────────────────────
 // Maps engine name → instantiated engine object
 // As real engines are built, swap the placeholder closure
@@ -88,18 +89,7 @@ require_once __DIR__ . '/../../engines/RedirectTrail.php';
 
 $engines = [
     'redirect_trail' => new RedirectTrail($audit),
-    'dns_propagation' => new class($audit) extends Engine {
-        protected function analyze(): array {
-            sleep(3);
-            return [
-                'resolvers_queried' => 52,
-                'propagated'        => 51,
-                'propagation_pct'   => 98.1,
-                'ttl'               => 60,
-                'score'             => 95
-            ];
-        }
-    },
+    'dns_propagation' => new DNSPropagation($audit),
 
     'tls_timeline' => new class($audit) extends Engine {
         protected function analyze(): array {
