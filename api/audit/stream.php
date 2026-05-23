@@ -77,75 +77,81 @@ $pdo->prepare("
 // Right now these are PLACEHOLDERS — real engine classes come next.
 // The pipeline, SSE flow, and DB updates are all real.
 
+// ── Load engine classes ──────────────────────────────────────
+require_once __DIR__ . '/../../engines/Engine.php';
+// At the top, add the require:
+require_once __DIR__ . '/../../engines/RedirectTrail.php';
+// ── Define the engines ───────────────────────────────────────
+// Maps engine name → instantiated engine object
+// As real engines are built, swap the placeholder closure
+// for: new EngineClassName($audit)
+
 $engines = [
-
-    'redirect_trail' => function(array $audit): array {
-        sleep(2); // simulate network I/O
-        return [
-            'hops'          => 3,
-            'final_url'     => 'https://github.com/',
-            'cdn'           => 'Fastly',
-            'trackers'      => [],
-            'privacy_risk'  => 'low',
-            'score'         => 90
-        ];
+    'redirect_trail' => new RedirectTrail($audit),
+    'dns_propagation' => new class($audit) extends Engine {
+        protected function analyze(): array {
+            sleep(3);
+            return [
+                'resolvers_queried' => 52,
+                'propagated'        => 51,
+                'propagation_pct'   => 98.1,
+                'ttl'               => 60,
+                'score'             => 95
+            ];
+        }
     },
 
-    'dns_propagation' => function(array $audit): array {
-        sleep(3);
-        return [
-            'resolvers_queried' => 52,
-            'propagated'        => 51,
-            'propagation_pct'   => 98.1,
-            'ttl'               => 60,
-            'score'             => 95
-        ];
+    'tls_timeline' => new class($audit) extends Engine {
+        protected function analyze(): array {
+            sleep(2);
+            return [
+                'issuer'         => 'DigiCert',
+                'valid_from'     => '2024-01-01',
+                'valid_to'       => '2025-01-01',
+                'days_remaining' => 180,
+                'anomalies'      => [],
+                'score'          => 88
+            ];
+        }
     },
 
-    'tls_timeline' => function(array $audit): array {
-        sleep(2);
-        return [
-            'issuer'        => 'DigiCert',
-            'valid_from'    => '2024-01-01',
-            'valid_to'      => '2025-01-01',
-            'days_remaining'=> 180,
-            'anomalies'     => [],
-            'score'         => 88
-        ];
+    'cookie_audit' => new class($audit) extends Engine {
+        protected function analyze(): array {
+            sleep(1);
+            return [
+                'total_cookies'    => 4,
+                'tracking_cookies' => 1,
+                'third_party'      => 2,
+                'privacy_grade'    => 'B',
+                'score'            => 75
+            ];
+        }
     },
 
-    'cookie_audit' => function(array $audit): array {
-        sleep(1);
-        return [
-            'total_cookies'     => 4,
-            'tracking_cookies'  => 1,
-            'third_party'       => 2,
-            'privacy_grade'     => 'B',
-            'score'             => 75
-        ];
+    'packet_journey' => new class($audit) extends Engine {
+        protected function analyze(): array {
+            sleep(4);
+            return [
+                'hops'       => 12,
+                'avg_rtt_ms' => 18.4,
+                'countries'  => ['IN', 'SG', 'US'],
+                'score'      => 82
+            ];
+        }
     },
 
-    'packet_journey' => function(array $audit): array {
-        sleep(4);
-        return [
-            'hops'          => 12,
-            'avg_rtt_ms'    => 18.4,
-            'countries'     => ['IN', 'SG', 'US'],
-            'score'         => 82
-        ];
+    'dns_resolution_tree' => new class($audit) extends Engine {
+        protected function analyze(): array {
+            sleep(2);
+            return [
+                'root'          => '.',
+                'tld'           => 'com',
+                'authoritative' => 'ns1.github.com',
+                'steps'         => 4,
+                'score'         => 92
+            ];
+        }
     },
-
-    'dns_resolution_tree' => function(array $audit): array {
-        sleep(2);
-        return [
-            'root'          => '.',
-            'tld'           => 'com',
-            'authoritative' => 'ns1.github.com',
-            'steps'         => 4,
-            'score'         => 92
-        ];
-    }
-
 ];
 
 // ── Run engines sequentially for now ────────────────────────
@@ -174,11 +180,11 @@ foreach ($engines as $engineName => $engineFn) {
     $startTime = microtime(true);
 
     try {
-
-        // Run the engine
-        $result     = $engineFn($audit);
-        $score      = $result['score'] ?? null;
-        $durationMs = (int) round((microtime(true) - $startTime) * 1000);
+        // run() handles timing and error catching internally
+        $engineOutput = $engineFn->run();
+        $result       = $engineOutput['data'];
+        $score        = $engineOutput['score'];
+        $durationMs   = $engineOutput['duration_ms'];
 
         // Store result in DB
         $pdo->prepare("
@@ -206,14 +212,13 @@ foreach ($engines as $engineName => $engineFn) {
         // Stream result to frontend
         SSE::send('engine_result', [
             'engine'      => $engineName,
-            'status'      => 'complete',
+            'status'      => $engineOutput['status'],
             'data'        => $result,
             'duration_ms' => $durationMs
         ]);
 
     } catch (Exception $e) {
-
-        error_log("Engine {$engineName} failed: " . $e->getMessage());
+        error_log("stream.php error for {$engineName}: " . $e->getMessage());
 
         $pdo->prepare("
             UPDATE engine_results
@@ -221,7 +226,6 @@ foreach ($engines as $engineName => $engineFn) {
             WHERE audit_id = ? AND engine = ?
         ")->execute([$audit['id'], $engineName]);
 
-        // Stream failure — frontend shows error state for this panel
         SSE::send('engine_result', [
             'engine'  => $engineName,
             'status'  => 'failed',
