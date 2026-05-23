@@ -85,6 +85,7 @@ require_once __DIR__ . '/../../engines/DNSPropagation.php';
 require_once __DIR__ . '/../../engines/TLSTimeline.php';
 require_once __DIR__ . '/../../engines/CookieAudit.php';
 require_once __DIR__ . '/../../engines/PacketJourney.php';
+require_once __DIR__ . '/../../engines/DNSResolutionTree.php';
 // ── Define the engines ───────────────────────────────────────
 // Maps engine name → instantiated engine object
 // As real engines are built, swap the placeholder closure
@@ -100,18 +101,7 @@ $engines = [
 
     'packet_journey' => new PacketJourney($audit),
 
-    'dns_resolution_tree' => new class($audit) extends Engine {
-        protected function analyze(): array {
-            sleep(2);
-            return [
-                'root'          => '.',
-                'tld'           => 'com',
-                'authoritative' => 'ns1.github.com',
-                'steps'         => 4,
-                'score'         => 92
-            ];
-        }
-    },
+    'dns_resolution_tree' => new DNSResolutionTree($audit),
 ];
 
 // ── Run engines sequentially for now ────────────────────────
