@@ -78,36 +78,26 @@ $pdo->prepare("
 // The pipeline, SSE flow, and DB updates are all real.
 
 // ── Load engine classes ──────────────────────────────────────
-require_once __DIR__ . '/../../engines/Engine.php';
-// At the top, add the require:
-require_once __DIR__ . '/../../engines/RedirectTrail.php';
-require_once __DIR__ . '/../../engines/DNSPropagation.php';
-require_once __DIR__ . '/../../engines/TLSTimeline.php';
-require_once __DIR__ . '/../../engines/CookieAudit.php';
-require_once __DIR__ . '/../../engines/PacketJourney.php';
-require_once __DIR__ . '/../../engines/DNSResolutionTree.php';
+// require_once __DIR__ . '/../../engines/Engine.php';
 // ── Define the engines ───────────────────────────────────────
 // Maps engine name → instantiated engine object
 // As real engines are built, swap the placeholder closure
 // for: new EngineClassName($audit)
 
+// ── Engine names — run_engine.php handles instantiation ──────
 $engines = [
-    'redirect_trail' => new RedirectTrail($audit),
-    'dns_propagation' => new DNSPropagation($audit),
-
-    'tls_timeline' => new TLSTimeline($audit),
-
-    'cookie_audit' => new CookieAudit($audit),
-
-    'packet_journey' => new PacketJourney($audit),
-
-    'dns_resolution_tree' => new DNSResolutionTree($audit),
+    'redirect_trail',
+    'dns_propagation',
+    'tls_timeline',
+    'cookie_audit',
+    'packet_journey',
+    'dns_resolution_tree',
 ];
-
 // ── Run engines sequentially for now ────────────────────────
 // We will replace this with parallel execution in Phase 2.
 // Sequential first so the flow is easy to understand and debug.
 
+/*
 $scores = [];
 
 foreach ($engines as $engineName => $engineFn) {
@@ -205,4 +195,151 @@ SSE::done([
     'trust_score' => $trustScore,
     'audit_id'    => $audit['id'],
     'slug'        => $slug
+]);
+*/
+// ── Run all engines in parallel as CLI processes ──────────────
+// Each engine runs as a separate PHP CLI process simultaneously.
+// CLI PHP has pcntl and full process capabilities.
+// Results written to temp files, streamed as they arrive.
+
+$tmpDir = sys_get_temp_dir() . '/urlforensics_' . $audit['id'] . '_' . time();
+mkdir($tmpDir, 0700, true);
+
+$engineNames = $engines;
+$processes   = [];
+$scores      = [];
+
+// ── Spawn one CLI process per engine ─────────────────────────
+foreach ($engineNames as $engineName) {
+
+    SSE::send('engine_start', ['engine' => $engineName]);
+
+    // Build the CLI command
+    $runnerScript = __DIR__ . '/run_engine.php';
+    $command = sprintf(
+        'php %s %s %d %s',
+        escapeshellarg($runnerScript),
+        escapeshellarg($engineName),
+        $audit['id'],
+        escapeshellarg($tmpDir)
+    );
+
+    // Debug: verify php binary and script exist
+    if (!file_exists($runnerScript)) {
+        error_log("run_engine.php not found at: {$runnerScript}");
+    }
+
+    // Start process in background
+    // We don't need to read stdout/stderr here —
+    // results come via temp files
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['file', '/tmp/urlforensics_engine_stderr.log', 'a'],
+    ];
+
+    SSE::send('debug', ['command' => $command, 'script_exists' => file_exists($runnerScript)]);
+
+    $process = proc_open($command, $descriptors, $pipes);
+
+    SSE::send('debug', ['process_started' => is_resource($process), 'engine' => $engineName]);
+
+    if (is_resource($process)) {
+        // Close pipes we don't need — prevents blocking
+        fclose($pipes[0]);
+        fclose($pipes[1]);
+        
+        $processes[$engineName] = $process;
+    } else {
+        error_log("Failed to spawn process for engine {$engineName}");
+        SSE::send('engine_result', [
+            'engine'  => $engineName,
+            'status'  => 'failed',
+            'data'    => null,
+            'duration_ms' => 0,
+        ]);
+    }
+}
+
+// ── Poll for results ──────────────────────────────────────────
+$completed = [];
+$maxWait   = 120;
+$waitStart = time();
+
+while (count($completed) < count($engineNames)) {
+
+    if (time() - $waitStart > $maxWait) {
+        error_log("Audit {$audit['id']} timed out");
+        break;
+    }
+
+    foreach ($engineNames as $engineName) {
+
+        if (isset($completed[$engineName])) continue;
+
+        $resultFile = "{$tmpDir}/{$engineName}.json";
+
+        if (file_exists($resultFile)) {
+
+            $raw     = file_get_contents($resultFile);
+            $payload = $raw ? json_decode($raw, true) : null;
+
+            if ($payload) {
+                $completed[$engineName] = true;
+
+                if ($payload['score'] !== null) {
+                    $scores[] = $payload['score'];
+                }
+
+                SSE::send('engine_result', [
+                    'engine'      => $payload['engine'],
+                    'status'      => $payload['status'],
+                    'data'        => $payload['data'],
+                    'duration_ms' => $payload['duration_ms'],
+                ]);
+            }
+        }
+    }
+
+    if (count($completed) < count($engineNames)) {
+        SSE::heartbeat();
+        usleep(200000); // 200ms
+    }
+}
+
+// ── Clean up processes ────────────────────────────────────────
+foreach ($processes as $engineName => $process) {
+    $status = proc_get_status($process);
+    if ($status['running']) {
+        proc_terminate($process);
+    }
+    proc_close($process);
+}
+
+// ── Clean up temp files ───────────────────────────────────────
+foreach (glob("{$tmpDir}/*.json") as $file) {
+    unlink($file);
+}
+rmdir($tmpDir);
+
+// ── Trust score ───────────────────────────────────────────────
+$trustScore = count($scores) > 0
+    ? (int) round(array_sum($scores) / count($scores))
+    : null;
+
+// ── Mark audit complete ───────────────────────────────────────
+$pdo->prepare("
+    UPDATE audits
+    SET
+        status       = 'complete',
+        trust_score  = ?,
+        completed_at = NOW()
+    WHERE id = ?
+")->execute([$trustScore, $audit['id']]);
+
+// ── Signal completion ─────────────────────────────────────────
+SSE::done([
+    'trust_score' => $trustScore,
+    'audit_id'    => $audit['id'],
+    'slug'        => $slug,
 ]);
