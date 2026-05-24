@@ -32,13 +32,28 @@
 
       <!-- Trust Score -->
       <div v-if="isComplete" class="trust-score">
-        <span class="trust-score__label">Trust Score</span>
+        <div class="trust-score__left">
+          <span class="trust-score__label">Trust Score</span>
+          <span class="trust-score__sub">computed from 6 engines</span>
+        </div>
         <span
           class="trust-score__value"
           :class="trustScoreClass"
         >
-          {{ trustScore }}
+          {{ trustScore }}<span class="trust-score__denom">/100</span>
         </span>
+        <div class="trust-score__bar-wrap">
+          <div
+            class="trust-score__bar"
+            :style="{
+              width: trustScore + '%',
+              background: trustBarColor,
+              height: '4px',
+              borderRadius: '2px',
+              transition: 'width 0.8s ease'
+            }"
+          ></div>
+        </div>
       </div>
 
       <!-- Engine Panels — only show after audit starts -->
@@ -47,6 +62,7 @@
           v-for="(engine, key) in engines"
           :key="key"
           :engine="engine"
+          :engine-key="key"
         />
       </div>
 
@@ -83,13 +99,20 @@ const trustScoreClass = computed(() => {
   if (trustScore.value >= 60)   return 'trust-score__value--mid'
   return 'trust-score__value--low'
 })
+
+const trustBarColor = computed(() => {
+  if (trustScore.value === null) return '#888'
+  if (trustScore.value >= 80)   return '#22c55e'
+  if (trustScore.value >= 60)   return '#f59e0b'
+  return '#ef4444'
+})
 </script>
 
 <style scoped>
 .app {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem 1.5rem;
+  padding: 2rem 1.5rem 4rem;
 }
 
 .header {
@@ -164,36 +187,68 @@ const trustScoreClass = computed(() => {
 }
 
 .trust-score {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 0.5rem 1rem;
   align-items: center;
-  gap: 1rem;
   margin-bottom: 2rem;
   padding: 1.25rem 1.5rem;
-  background: #12121a;
-  border: 1px solid #1e1e2e;
-  border-radius: 12px;
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+}
+
+.trust-score__left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .trust-score__label {
-  font-size: 0.85rem;
-  color: #64748b;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-.trust-score__value {
-  font-size: 2.5rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+.trust-score__sub {
+  font-size: 0.72rem;
+  color: var(--color-text-tertiary);
 }
 
-.trust-score__value--high { color: #22c55e; }
-.trust-score__value--mid  { color: #f59e0b; }
-.trust-score__value--low  { color: #ef4444; }
+.trust-score__value {
+  font-size: 2.5rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.trust-score__denom {
+  font-size: 1rem;
+  color: var(--color-text-tertiary);
+  font-weight: 400;
+}
+
+.trust-score__bar-wrap {
+  grid-column: 1 / -1;
+  height: 4px;
+  background: var(--color-border-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.trust-score__bar {
+  grid-column: 1 / -1;
+}
+
+.trust-score__value--high { color: var(--color-text-success); }
+.trust-score__value--mid  { color: var(--color-text-warning); }
+.trust-score__value--low  { color: var(--color-text-danger); }
 
 .panels {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 1rem;
 }
 </style>
