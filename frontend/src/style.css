@@ -13,3 +13,22 @@
 body {
   min-height: 100vh;
 }
+
+input, button, a {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+input[type="text"] {
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  padding: 0.875rem 1.25rem;
+  outline: none;
+  width: 100%;
+}
+
+input[type="text"]:focus {
+  border-color: var(--color-border-info);
+}

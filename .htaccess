@@ -1,0 +1,12 @@
+Options -Indexes
+RewriteEngine On
+
+# Allow direct access to real files and directories
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Route /api/* to PHP files
+RewriteRule ^api/ - [L]
+
+# Route /report/* and everything else to Vue
+RewriteRule ^ index.html [L]
