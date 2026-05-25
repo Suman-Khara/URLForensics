@@ -338,8 +338,31 @@ $pdo->prepare("
 ")->execute([$trustScore, $audit['id']]);
 
 // ── Signal completion ─────────────────────────────────────────
+// Fetch completed engine results for signal analysis
+$stmt = $pdo->prepare("
+    SELECT engine, status, result, score
+    FROM engine_results
+    WHERE audit_id = ?
+");
+$stmt->execute([$audit['id']]);
+$engineRows = $stmt->fetchAll();
+
+$enginesForAnalysis = [];
+foreach ($engineRows as $row) {
+    $enginesForAnalysis[$row['engine']] = [
+        'status' => $row['status'],
+        'data'   => $row['result'] ? json_decode($row['result'], true) : null,
+        'score'  => $row['score'],
+    ];
+}
+
+require_once __DIR__ . '/../../lib/SignalAnalyzer.php';
+$analyzer = new SignalAnalyzer($enginesForAnalysis);
+$signals  = $analyzer->analyze();
+
 SSE::done([
     'trust_score' => $trustScore,
     'audit_id'    => $audit['id'],
     'slug'        => $slug,
+    'signals'     => $signals,
 ]);

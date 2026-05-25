@@ -44,6 +44,12 @@
         </div>
       </div>
 
+      <SignalPanel
+        v-if="isComplete && signals && verdict"
+        :signals="signals"
+        :verdict="verdict"
+      />
+      
       <!-- Shareable report link -->
       <div v-if="isComplete && auditSlug" class="report-link">
         <span class="report-link__label">Permanent report:</span>
@@ -73,6 +79,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import EnginePanel from '@/components/EnginePanel.vue'
 import { useAudit } from '@/composables/useAudit.js'
+import SignalPanel from '@/components/SignalPanel.vue'
 
 const route    = useRoute()
 const urlInput = ref(route.query.url ?? '')
@@ -85,6 +92,8 @@ const {
   trustScore,
   isComplete,
   engines,
+  signals,
+  verdict,
   startAudit,
 } = useAudit()
 

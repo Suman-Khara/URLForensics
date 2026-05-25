@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../../lib/DB.php';
+require_once __DIR__ . '/../../lib/SignalAnalyzer.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -62,10 +63,14 @@ try {
         ];
     }
 
+    $analyzer = new SignalAnalyzer($engines);
+    $signals  = $analyzer->analyze();
+
     echo json_encode([
         'success' => true,
         'audit'   => $audit,
         'engines' => $engines,
+        'signals' => $signals,
     ]);
 
 } catch (Exception $e) {

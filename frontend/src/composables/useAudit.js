@@ -19,6 +19,8 @@ export function useAudit() {
   const auditSlug   = ref(null)
   const trustScore  = ref(null)
   const isComplete  = ref(false)
+  const signals = ref(null)
+  const verdict = ref(null)
 
   // Each engine gets its own state object
   const engines = reactive(
@@ -103,6 +105,13 @@ export function useAudit() {
       trustScore.value = payload.trust_score
       isComplete.value = true
       isLoading.value  = false
+
+      // Add signals from done event
+      if (payload.signals) {
+        signals.value = payload.signals.signals
+        verdict.value = payload.signals.verdict
+      }
+
       source.close()   // close the SSE connection cleanly
     })
 
@@ -121,6 +130,8 @@ export function useAudit() {
     trustScore,
     isComplete,
     engines,
+    signals,
+    verdict,
     startAudit,
   }
 }

@@ -67,6 +67,12 @@
         </div>
       </div>
 
+      <SignalPanel
+        v-if="signals && verdict"
+        :signals="signals"
+        :verdict="verdict"
+      />
+
       <!-- Engine panels -->
       <div class="report__panels">
         <EnginePanel
@@ -87,6 +93,7 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink }  from 'vue-router'
 import axios           from 'axios'
 import EnginePanel     from '@/components/EnginePanel.vue'
+import SignalPanel     from '@/components/SignalPanel.vue'
 
 const props = defineProps({
   slug: { type: String, required: true }
@@ -98,6 +105,8 @@ const error   = ref(null)
 const audit   = ref(null)
 const engines = ref({})
 const copied  = ref(false)
+const signals = ref(null)
+const verdict = ref(null)
 
 // Engine display metadata — same as useAudit.js
 const ENGINE_META = {
@@ -117,6 +126,11 @@ onMounted(async () => {
     )
     audit.value   = response.data.audit
     engines.value = response.data.engines
+
+    if (response.data.signals) {
+      signals.value = response.data.signals.signals
+      verdict.value = response.data.signals.verdict
+    }
   } catch (err) {
     error.value = err.response?.status === 404
       ? 'This report does not exist or has been removed.'
