@@ -2,6 +2,7 @@
 
 // ── Bootstrap ────────────────────────────────────────────────
 require_once __DIR__ . '/../../lib/DB.php';
+require_once __DIR__ . '/../../lib/RateLimiter.php';
 
 // All responses from this endpoint are JSON
 header('Content-Type: application/json');
@@ -12,6 +13,41 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
     exit;
+}
+
+// ── Rate limiting ─────────────────────────────────────────
+$pdo         = null;
+$rateLimiter = null;
+
+try {
+    $pdo         = DB::connect();
+    $rateLimiter = new RateLimiter($pdo);
+    $clientIP    = RateLimiter::getClientIP();
+
+    if (!$rateLimiter->check($clientIP)) {
+        $retryAfter = $rateLimiter->retryAfter($clientIP);
+        http_response_code(429);
+        header("Retry-After: {$retryAfter}");
+        echo json_encode([
+            'error'       => 'Rate limit exceeded',
+            'message'     => 'Maximum 10 audits per hour.',
+            'retry_after' => $retryAfter,
+        ]);
+        exit;
+    }
+    
+    // Inform client of their rate limit status
+    if ($rateLimiter) {
+        $remaining = max(0, 10 - $rateLimiter->countRecent($clientIP));
+        header("X-RateLimit-Limit: 10");
+        header("X-RateLimit-Remaining: {$remaining}");
+        header("X-RateLimit-Window: 3600");
+    }
+
+} catch (Exception $e) {
+    error_log('Rate limiter error: ' . $e->getMessage());
+    // If rate limiter fails, allow the request
+    // Better to serve than to block on a limiter bug
 }
 
 // ── Parse the request body ───────────────────────────────────

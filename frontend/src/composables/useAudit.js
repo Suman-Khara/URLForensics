@@ -61,7 +61,13 @@ export function useAudit() {
       openStream(slug)
 
     } catch (err) {
-      error.value   = err.response?.data?.error ?? 'Failed to start audit'
+      if (err.response?.status === 429) {
+        const retryAfter = err.response.data?.retry_after ?? 3600
+        const minutes    = Math.ceil(retryAfter / 60)
+        error.value = `Rate limit reached. You can run 10 audits per hour. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`
+      } else {
+        error.value = err.response?.data?.error ?? 'Failed to start audit'
+      }
       isLoading.value = false
     }
   }
