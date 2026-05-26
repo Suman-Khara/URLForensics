@@ -5,6 +5,13 @@
       <span class="panel__icon" aria-hidden="true">{{ engine.icon }}</span>
       <span class="panel__label">{{ engine.label }}</span>
       <span class="panel__badge">{{ statusLabel }}</span>
+      <RouterLink
+        v-if="engine.status === 'complete' && detailPath"
+        :to="detailPath"
+        class="panel__detail-link"
+      >
+        Details →
+      </RouterLink>
     </div>
 
     <div v-if="engine.status === 'running'" class="panel__loading">
@@ -55,6 +62,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import RedirectTrailPanel   from './panels/RedirectTrailPanel.vue'
 import DNSPropagationPanel  from './panels/DNSPropagationPanel.vue'
 import TLSTimelinePanel     from './panels/TLSTimelinePanel.vue'
@@ -65,7 +73,9 @@ import DNSResolutionPanel   from './panels/DNSResolutionPanel.vue'
 const props = defineProps({
   engine:    { type: Object,  required: true },
   engineKey: { type: String,  required: true },
+  auditSlug: { type: String,  default: null },
 })
+
 
 const statusLabel = computed(() => ({
   idle:     '',
@@ -74,6 +84,26 @@ const statusLabel = computed(() => ({
   complete: 'complete',
   failed:   'failed',
 }[props.engine.status] ?? ''))
+
+const route = useRoute()
+
+const ENGINE_PATHS = {
+  redirect_trail:      'redirect-trail',
+  dns_propagation:     'dns-propagation',
+  tls_timeline:        'tls-timeline',
+  cookie_audit:        'cookie-audit',
+  packet_journey:      'packet-journey',
+  dns_resolution_tree: 'dns-resolution',
+}
+
+const detailPath = computed(() => {
+  // Use prop slug (homepage) or route param slug (report page)
+  const slug = props.auditSlug || route.params.slug
+  if (!slug) return null
+  const path = ENGINE_PATHS[props.engineKey]
+  if (!path) return null
+  return `/report/${slug}/${path}`
+})
 </script>
 
 <style scoped>
@@ -149,5 +179,19 @@ const statusLabel = computed(() => ({
 @keyframes pulse {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+.panel__detail-link {
+  font-size: 0.75rem;
+  color: var(--color-text-info);
+  text-decoration: none;
+  padding: 2px 8px;
+  border: 0.5px solid var(--color-border-info);
+  border-radius: var(--border-radius-md);
+  white-space: nowrap;
+}
+
+.panel__detail-link:hover {
+  background: var(--color-background-info);
 }
 </style>

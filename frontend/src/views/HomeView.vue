@@ -67,6 +67,7 @@
           :key="key"
           :engine="engine"
           :engine-key="key"
+          :audit-slug="auditSlug"
         />
       </div>
 
